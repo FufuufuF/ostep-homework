@@ -38,6 +38,21 @@ DO_COMPUTE = 'cpu'
 DO_IO = 'io'
 DO_IO_DONE = 'io_done'
 
+'''
+进程的数据模型:
+```
+{
+    PROC_ID: int, // 进程id
+    PROC_PC: int, // PC寄存器, 指向当前指令的内存地址
+    PROC_CODE: list of instructions (DO_COMPUTE, DO_IO, DO_IO_DONE), // 进程的指令列表, 在真实进程中应该不存在这个数据结构? 这里知识模拟用
+    PROC_STATE: one of (STATE_RUNNING, STATE_READY, STATE_DONE, STATE_WAIT) // 进程状态, 运行中, 就绪, 阻塞, 完成
+}
+```
+
+在调度器的内容通过一个字典来模拟进程表
+'''
+
+
 
 class scheduler:
     def __init__(self, process_switch_behavior, io_done_behavior, io_length):
@@ -49,6 +64,10 @@ class scheduler:
         return
 
     def new_process(self):
+        '''
+        在进程表字典中插入一个新进程
+        '''
+        
         proc_id = len(self.proc_info)
         self.proc_info[proc_id] = {}
         self.proc_info[proc_id][PROC_PC] = 0
@@ -62,6 +81,10 @@ class scheduler:
     # which means
     #   compute for 7, then i/o, then compute for 1, then i/o
     def load_program(self, program):
+        '''
+        接收一段program指令字符串, 然后创建一个新进程用于运行这个指令
+        '''
+        
         proc_id = self.new_process()
         for line in program.split(','):
             opcode = line[0]
@@ -79,6 +102,10 @@ class scheduler:
         return
 
     def load(self, program_description):
+        '''
+        接收一段program描述字符串, 格式为X:Y, 其中X是指令数量, Y是CPU指令的百分比. 然后创建一个新进程用于运行这个指令
+        '''
+        
         proc_id = self.new_process()
         tmp = program_description.split(':')
         if len(tmp) != 2:
@@ -220,14 +247,17 @@ class scheduler:
                     self.move_to_ready(STATE_WAIT, pid)
                     if self.io_done_behavior == IO_RUN_IMMEDIATE:
                         # IO_RUN_IMMEDIATE
+                        # IO完成之后立即抢占CPU, 让发出IO的进程运行
                         if self.curr_proc != pid:
                             if self.proc_info[self.curr_proc][PROC_STATE] == STATE_RUNNING:
                                 self.move_to_ready(STATE_RUNNING)
                         self.next_proc(pid)
                     else:
                         # IO_RUN_LATER
+                        # IO完成之后不立即抢占CPU, 让发出IO的进程在它的turn到来的时候运行
                         if self.process_switch_behavior == SCHED_SWITCH_ON_END and self.get_num_runnable() > 1:
                             # this means the process that issued the io should be run
+                            # 先来先服务式的调度, 让发出IO的进程在它的turn到来的时候运行
                             self.next_proc(pid)
                         if self.get_num_runnable() == 1:
                             # this is the only thing to run: so run it
